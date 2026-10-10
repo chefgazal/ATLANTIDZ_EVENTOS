@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Precificador de Eventos",
-  "short_name": "Precificador",
+  "name": "Menu Eventos",
+  "short_name": "Menu Eventos",
   "description": "Precificação de eventos: cardápio, equipe e orçamento.",
   "lang": "pt-BR",
   "start_url": "/",
