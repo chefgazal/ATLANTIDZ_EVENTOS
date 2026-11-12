@@ -116,8 +116,18 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 .pk .ck{position:absolute;top:14px;right:14px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;color:transparent}
 .pk[aria-checked="true"] .ck{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pk .ck svg{width:14px;height:14px}
-.seg.modo{justify-self:start}
-.seg.modo button{padding:9px 18px}
+.box{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.box.kits{border-color:color-mix(in srgb,var(--wave) 55%,var(--line))}
+.box-h{display:flex;align-items:center;gap:12px;width:100%;border:0;background:var(--sunk);padding:14px 16px;text-align:left;cursor:pointer;color:var(--ink)}
+.box.kits .box-h{background:var(--accent-soft)}
+.box-t{flex:1;min-width:0;display:grid;gap:2px}
+.box-t b{font:600 1.08rem var(--f-display)}
+.box-t small{color:var(--muted);font-size:.86rem}
+.box-tag{font-size:.74rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 10px;background:var(--surface);color:var(--muted);white-space:nowrap}
+.box-tag.multi{background:var(--accent);color:var(--accent-ink)}
+.chev{width:12px;height:12px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-3px,-3px);transition:transform .15s;flex:none}
+.box.open .chev{transform:rotate(-135deg) translate(-3px,-3px)}
+.box-b{padding:16px;display:grid;gap:14px}
 .kgrp{display:grid;gap:10px}
 .kgrp+.kgrp{border-top:1px solid var(--line);padding-top:16px}
 .kgrp-h{display:flex;align-items:center;gap:10px}
@@ -345,12 +355,12 @@ const temKits=()=>!!(CAT?.kits?.length)||Object.keys(F.kitSnaps||{}).length>0;
 function servicoPreco(f=F){return f.servicoSnap??(CAT?.servicoKits||0)}
 function calc(f=F){
   const n=Math.max(0,Math.round(num(f.convidados)||0));
-  const kitsMode=f.modo==='kits';
-  const P=kitsMode?null:pacoteDe(f);
-  const kits=kitsMode?kitsLista(f).filter(k=>f.kits[k.id]).map(k=>({...clone(k),valor:k.preco*n})):[];
-  const servico=kitsMode&&kits.length&&servicoPreco(f)>0?{preco:servicoPreco(f),valor:servicoPreco(f)*n}:null;
+  const P=pacoteDe(f);
+  const kits=kitsLista(f).filter(k=>f.kits?.[k.id]).map(k=>({...clone(k),valor:k.preco*n}));
+  const servico=!P&&kits.length&&servicoPreco(f)>0?{preco:servicoPreco(f),valor:servicoPreco(f)*n}:null;
   const cobrados=P?Math.max(n,P.minimo||0):n;
-  const pacote=kitsMode?kits.reduce((a,k)=>a+k.valor,0)+(servico?.valor||0):(P?P.preco*cobrados:0);
+  const pacote=(P?P.preco*cobrados:0)+kits.reduce((a,k)=>a+k.valor,0)+(servico?.valor||0);
+  const kitsMode=!P&&kits.length>0;
   const ads=adicionaisLista(f).filter(a=>f.ads[a.id]?.on).map(a=>({id:a.id,nome:a.nome,descricao:a.descricao||'',unidade:a.unidade,preco:adPreco(a,f),qtd:a.unidade==='unidade'?Math.max(1,num(f.ads[a.id]?.qtd)||1):(a.unidade==='pessoa'?n:1),valor:valorAd(a,n,f)}));
   const adicionais=ads.reduce((s,a)=>s+a.valor,0);
   const max=CAT?.descontoMax;const dv=Math.max(0,num(f.descValor)||0);
@@ -359,11 +369,12 @@ function calc(f=F){
   if(desconto>pacote){desconto=pacote;limitado=true}
   desconto=Math.round(desconto*100)/100;
   const total=pacote+adicionais-desconto;
-  return{n,modo:kitsMode?'kits':'pacote',P,kits,servico,cobrados,pacote,ads,adicionais,desconto,limitado,total,porPessoa:n?total/n:0};
+  return{n,modo:P&&kits.length?'misto':kitsMode?'kits':'pacote',P,kits,servico,cobrados,pacote,ads,adicionais,desconto,limitado,total,porPessoa:n?total/n:0};
 }
-function faltando(f=F){const m=[];if(!f.cliente.trim())m.push('nome do cliente');if(!(num(f.convidados)>0))m.push('número de convidados');if(f.modo==='kits'){if(!kitsLista(f).some(k=>f.kits[k.id]))m.push('pelo menos um kit')}else if(!pacoteDe(f))m.push('pacote');return m}
-const cardapioNome=o=>o.modo==='kits'?'Montado com kits':(o.pacote?.nome||'');
-const blocosCardapio=o=>o.modo==='kits'?o.kits.map(k=>({nome:`${k.categoria} · ${k.nome}`,itens:k.secoes.flatMap(x=>x.itens)})):o.pacote.secoes;
+function faltando(f=F){const m=[];if(!f.cliente.trim())m.push('nome do cliente');if(!(num(f.convidados)>0))m.push('número de convidados');if(!pacoteDe(f)&&!kitsLista(f).some(k=>f.kits?.[k.id]))m.push('pacote ou kit');return m}
+const cardapioNome=o=>o.pacote?(o.pacote.nome+(o.kits?.length?` + ${o.kits.length} kit${o.kits.length>1?'s':''}`:'')):'Montado com kits';
+const blocosKits=o=>(o.kits||[]).map(k=>({nome:`${k.categoria} · ${k.nome}`,itens:k.secoes.flatMap(x=>x.itens)}));
+const blocosCardapio=o=>[...(o.pacote?o.pacote.secoes:[]),...blocosKits(o)];
 
 /* ===== navegação ===== */
 function go(v,id=null){
@@ -417,20 +428,28 @@ function renderNovo(){
       <label class="f c6">Local<input class="in" id="f-local" data-f="local" value="${esc(f.local)}" placeholder="Espaço ou endereço"></label>
       ${tipos.length?`<div class="f c6" style="display:grid;gap:8px"><span style="font-size:.84rem;font-weight:600;color:var(--muted)">Tipo de evento</span><div class="chips">${tipos.map(t=>`<button type="button" class="chip" data-act="tipo" data-k="${esc(t)}" aria-pressed="${f.tipo===t}">${esc(t)}</button>`).join('')}</div></div>`:''}
     </div></section>`;
-  // 2 pacote
+  // 2 cardápio: pacotes (escolha 1) + kits (escolha vários)
   const pks=[...CAT.pacotes];const snap=f.pacoteSnap;if(snap&&!pks.some(p=>p.id===snap.id))pks.push(snap);
-  const P=c.P;
-  const kitsMode=f.modo==='kits';
+  const P=c.P;const ks=kitsLista();
+  const boxPk=f.boxPk!==false, boxKit=f.boxKit!==false;
+  const kitsSel=c.kits;
   h+=`<section class="step"><div class="step-h"><span class="n">2</span><h2>Cardápio</h2><span class="hint">valor por convidado</span></div>
-    ${temKits()?`<span class="seg modo" role="group" aria-label="Como montar o cardápio"><button type="button" data-act="modo" data-k="pacote" aria-pressed="${!kitsMode}">Pacote pronto</button><button type="button" data-act="modo" data-k="kits" aria-pressed="${kitsMode}">Montar com kits</button></span>`:''}
-    ${kitsMode?renderKits(c):`${pks.length?`<div class="pk-grid" role="radiogroup" aria-label="Pacote">${pks.map(p0=>{const p=snap&&snap.id===p0.id?snap:p0;return `<button type="button" class="pk" role="radio" aria-checked="${f.pacoteId===p.id}" data-act="pacote" data-k="${esc(p.id)}">
+    ${pks.length?`<div class="box${boxPk?' open':''}">
+      <button type="button" class="box-h" data-act="box" data-k="boxPk" aria-expanded="${boxPk}"><span class="box-t"><b>Pacotes prontos</b><small>${P?`Escolhido: ${esc(P.nome)} · ${brl0(P.preco)} por convidado`:'Escolha um pacote completo'}</small></span><span class="box-tag">escolha 1</span><span class="chev" aria-hidden="true"></span></button>
+      ${boxPk?`<div class="box-b"><div class="pk-grid" role="radiogroup" aria-label="Pacote">${pks.map(p0=>{const p=snap&&snap.id===p0.id?snap:p0;return `<button type="button" class="pk" role="radio" aria-checked="${f.pacoteId===p.id}" data-act="pacote" data-k="${esc(p.id)}">
         <span class="ck">${ICO.check}</span><span class="nm">${esc(p.nome)}</span>
         <span class="pr"><b>${brl0(p.preco)}</b><small>por convidado</small></span>
         ${p.descricao?`<span class="ds">${esc(p.descricao)}</span>`:''}
-        ${p.minimo?`<span class="mn">Mínimo ${p.minimo} convidados</span>`:''}</button>`}).join('')}</div>`:`<p class="note">Nenhum pacote publicado.</p>`}
-    ${P?`<div class="menu-h"><b>Cardápio ${esc(P.nome)}</b><button class="btn ghost" data-act="menu">${menuAberto===P.id?'Esconder cardápio':'Ver cardápio completo'}</button></div>
-      ${menuAberto===P.id?`<div class="menu">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div>`:''}
-      ${c.n&&P.minimo&&c.n<P.minimo?`<p class="note warn">Este pacote tem mínimo de ${P.minimo} convidados. O valor considera ${P.minimo}.</p>`:''}`:''}`}
+        ${p.minimo?`<span class="mn">Mínimo ${p.minimo} convidados</span>`:''}</button>`}).join('')}</div>
+      ${P?`<div class="menu-h"><b>Cardápio ${esc(P.nome)}</b><button class="btn ghost" data-act="menu">${menuAberto===P.id?'Esconder cardápio':'Ver cardápio completo'}</button></div>
+        ${menuAberto===P.id?`<div class="menu">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div>`:''}
+        ${c.n&&P.minimo&&c.n<P.minimo?`<p class="note warn">Este pacote tem mínimo de ${P.minimo} convidados. O valor considera ${P.minimo}.</p>`:''}`:''}</div>`:''}
+    </div>`:''}
+    ${ks.length?`<div class="box kits${boxKit?' open':''}">
+      <button type="button" class="box-h" data-act="box" data-k="boxKit" aria-expanded="${boxKit}"><span class="box-t"><b>Kits para combinar</b><small>${kitsSel.length?`${kitsSel.length} kit${kitsSel.length>1?'s':''} escolhido${kitsSel.length>1?'s':''} · ${brl0(kitsSel.reduce((a,k)=>a+k.preco,0))} por convidado`:'Monte o evento juntando kits: entrada + principal + sobremesa…'}</small></span><span class="box-tag multi">vários</span><span class="chev" aria-hidden="true"></span></button>
+      ${boxKit?`<div class="box-b">${renderKits(c)}</div>`:''}
+    </div>`:''}
+    ${!pks.length&&!ks.length?`<p class="note">Nenhum pacote ou kit publicado.</p>`:''}
   </section>`;
   // 3 adicionais
   const ads=adicionaisLista();
@@ -460,13 +479,13 @@ function renderNovo(){
 function atualizarResumo(){
   if(route.v!=='novo'||!CAT)return;const c=calc();const P=c.P;
   const L=[];
-  if(P)L.push([`${P.nome} · ${c.cobrados} × ${brl0(P.preco)}`,brl(c.pacote)]);
+  if(P)L.push([`${P.nome} · ${c.cobrados} × ${brl0(P.preco)}`,brl(P.preco*c.cobrados)]);
   c.kits.forEach(k=>L.push([`${k.nome} · ${c.n} × ${brl0(k.preco)}`,brl(k.valor)]));
   if(c.servico)L.push([`Equipe e serviço · ${c.n} × ${brl0(c.servico.preco)}`,brl(c.servico.valor)]);
   c.ads.forEach(a=>L.push([a.unidade==='unidade'?`${a.nome} (${a.qtd})`:a.nome,brl(a.valor)]));
   if(c.desconto>0)L.push([`Desconto${F.descModo==='pct'&&!c.limitado?` ${nf(num(F.descValor))}%`:''}`,'− '+brl(c.desconto),'disc']);
   $('#s-tit').textContent=F.cliente.trim()||'Novo orçamento';
-  $('#s-lines').innerHTML=L.length?L.map(([a,b,k])=>`<div class="${k||''}"><span>${esc(a)}</span><span>${b}</span></div>`).join(''):`<div><span>${F.modo==='kits'?'Escolha os kits para ver o valor.':'Escolha um pacote para ver o valor.'}</span></div>`;
+  $('#s-lines').innerHTML=L.length?L.map(([a,b,k])=>`<div class="${k||''}"><span>${esc(a)}</span><span>${b}</span></div>`).join(''):`<div><span>Escolha um pacote ou kits para ver o valor.</span></div>`;
   $('#s-total').textContent=brl(c.total);
   $('#s-pp').textContent=c.n?`${brl(c.porPessoa)} por convidado · ${c.n} convidados`:'Informe os convidados';
   const m=faltando();$('#s-miss').textContent=m.length?'Falta: '+m.join(', ')+'.':'';
@@ -479,7 +498,7 @@ function atualizarResumo(){
 
 function renderKits(c){
   const ks=kitsLista();const cats=categoriasLista();const sv=servicoPreco();
-  return `<p class="note">Escolha um ou mais kits de cada categoria. Cada kit é cobrado por convidado.${sv>0?` Equipe e serviço (${brl0(sv)} por convidado) entram automaticamente.`:''}</p>
+  return `<p class="note">Toque para marcar quantos kits quiser. Cada kit é cobrado por convidado.${sv>0?(c.P?' Com pacote escolhido, os kits entram como extras.':` Equipe e serviço (${brl0(sv)} por convidado) entram automaticamente.`):''}</p>
   ${cats.map(cat=>{const L=ks.filter(k=>k.categoria===cat);if(!L.length)return '';const sel=L.filter(k=>F.kits[k.id]).length;
     return `<div class="kgrp"><div class="kgrp-h"><h3>${esc(cat)}</h3>${sel?`<span class="pill-ok">${sel} escolhido${sel>1?'s':''}</span>`:''}</div>
     <div class="pk-grid">${L.map(k=>{const on=!!F.kits[k.id];const itens=k.secoes.flatMap(x=>x.itens);return `<button type="button" class="pk kit" role="checkbox" aria-checked="${on}" data-act="kit" data-k="${esc(k.id)}">
@@ -498,7 +517,7 @@ async function salvar(){
     cliente:F.cliente.trim(),telefone:F.telefone.trim(),data:F.data,horario:F.horario,tipo:F.tipo,convidados:c.n,local:F.local.trim(),observacoes:F.observacoes.trim(),
     modo:c.modo,pacote:c.P?clone(c.P):null,kits:c.kits.map(k=>({id:k.id,nome:k.nome,categoria:k.categoria,descricao:k.descricao||'',preco:k.preco,valor:k.valor,secoes:k.secoes})),servico:c.servico,cobrados:c.cobrados,adicionais:c.ads,desconto:{modo:F.descModo,valor:num(F.descValor)||0,aplicado:c.desconto},
     totais:{cardapio:c.pacote,pacote:c.pacote,adicionais:c.adicionais,desconto:c.desconto,total:c.total,porPessoa:c.porPessoa},
-    form:clone({...F,editId:null,pacoteSnap:c.P,kits:Object.fromEntries(c.kits.map(k=>[k.id,true])),kitSnaps:Object.fromEntries(c.kits.map(k=>{const {valor,...r}=k;return [k.id,r]})),servicoSnap:c.modo==='kits'?servicoPreco():null,ads:Object.fromEntries(c.ads.map(a=>[a.id,{on:true,qtd:a.qtd,snap:{id:a.id,nome:a.nome,descricao:a.descricao,preco:a.preco,unidade:a.unidade}}]))})};
+    form:clone({...F,editId:null,pacoteId:c.P?.id||null,pacoteSnap:c.P,kits:Object.fromEntries(c.kits.map(k=>[k.id,true])),kitSnaps:Object.fromEntries(c.kits.map(k=>{const {valor,...r}=k;return [k.id,r]})),servicoSnap:c.modo==='kits'?servicoPreco():null,ads:Object.fromEntries(c.ads.map(a=>[a.id,{on:true,qtd:a.qtd,snap:{id:a.id,nome:a.nome,descricao:a.descricao,preco:a.preco,unidade:a.unidade}}]))})};
   salvando=true;document.querySelectorAll('[data-act="salvar"]').forEach(b=>{b.disabled=true;b.textContent='Salvando…'});
   try{await gravarOrc(o);const i=ORCS.findIndex(x=>x.id===id);if(i>=0)ORCS[i]=o;else ORCS.unshift(o);
     F=emptyForm();LS.del('orc_rascunho');toast(prev?'Orçamento atualizado':'Orçamento salvo');go('ver',id)}
@@ -518,20 +537,20 @@ function renderVer(){
     <div class="tot"><b>${brl(t.total)}</b><span>${brl(t.porPessoa)} por convidado</span></div></div>
   <div class="doc-body">
     <dl class="facts"><div><dt>Convidados</dt><dd>${o.convidados}</dd></div><div><dt>Local</dt><dd>${esc(o.local||'—')}</dd></div><div><dt>Telefone</dt><dd>${esc(o.telefone||'—')}</dd></div><div><dt>Feito por</dt><dd>${esc((o.criadoPor||'').split('@')[0]||'—')}</dd></div><div><dt>Atualizado</dt><dd>${new Date(o.atualizadoEm).toLocaleDateString('pt-BR')}</dd></div></dl>
-    ${o.modo==='kits'?`<section><div class="sec-h"><h3>Cardápio montado com kits</h3><span>${brl(t.cardapio??t.pacote)}</span></div>
-      <table>${o.kits.map(k=>`<tr><td><b>${esc(k.nome)}</b> <span class="note">· ${esc(k.categoria)}</span><br><span class="note">${k.secoes.flatMap(x=>x.itens).map(esc).join(' · ')}</span></td><td class="r">${o.convidados} × ${brl0(k.preco)}<br>${brl(k.valor)}</td></tr>`).join('')}
-      ${o.servico?`<tr><td><b>Equipe e serviço</b></td><td class="r">${o.convidados} × ${brl0(o.servico.preco)}<br>${brl(o.servico.valor)}</td></tr>`:''}</table></section>`
-    :`<section><div class="sec-h"><h3>Pacote ${esc(P.nome)}</h3><span>${o.cobrados} × ${brl0(P.preco)} = ${brl(t.pacote)}</span></div>
+    ${P?`<section><div class="sec-h"><h3>Pacote ${esc(P.nome)}</h3><span>${o.cobrados} × ${brl0(P.preco)} = ${brl(P.preco*o.cobrados)}</span></div>
       ${P.descricao?`<p class="note" style="margin-bottom:12px">${esc(P.descricao)}</p>`:''}
-      <div class="menu" style="border:0;padding:0">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></section>`}
+      <div class="menu" style="border:0;padding:0">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></section>`:''}
+    ${o.kits?.length?`<section><div class="sec-h"><h3>${P?'Kits extras':'Cardápio montado com kits'}</h3><span>${brl(o.kits.reduce((a,k)=>a+k.valor,0)+(o.servico?.valor||0))}</span></div>
+      <table>${o.kits.map(k=>`<tr><td><b>${esc(k.nome)}</b> <span class="note">· ${esc(k.categoria)}</span><br><span class="note">${k.secoes.flatMap(x=>x.itens).map(esc).join(' · ')}</span></td><td class="r">${o.convidados} × ${brl0(k.preco)}<br>${brl(k.valor)}</td></tr>`).join('')}
+      ${o.servico?`<tr><td><b>Equipe e serviço</b></td><td class="r">${o.convidados} × ${brl0(o.servico.preco)}<br>${brl(o.servico.valor)}</td></tr>`:''}</table></section>`:''}
     ${o.adicionais.length?`<section><div class="sec-h"><h3>Adicionais</h3><span>${brl(t.adicionais)}</span></div><table>${o.adicionais.map(a=>`<tr><td>${esc(a.nome)}<br><span class="note">${a.unidade==='pessoa'?`${a.qtd} convidados × ${brl0(a.preco)}`:a.unidade==='unidade'?`${a.qtd} × ${brl0(a.preco)}`:'valor fixo'}</span></td><td class="r">${brl(a.valor)}</td></tr>`).join('')}</table></section>`:''}
     ${o.observacoes?`<section><div class="sec-h"><h3>Observações</h3></div><p class="obs">${esc(o.observacoes)}</p></section>`:''}
-    <div class="totbox"><div><span>${o.modo==='kits'?'Cardápio':'Pacote'}</span><span>${brl(t.cardapio??t.pacote)}</span></div>${t.adicionais?`<div><span>Adicionais</span><span>${brl(t.adicionais)}</span></div>`:''}${t.desconto?`<div class="d"><span>Desconto</span><span>− ${brl(t.desconto)}</span></div>`:''}<div class="g"><span>Total</span><span>${brl(t.total)}</span></div></div>
+    <div class="totbox"><div><span>${P&&!o.kits?.length?'Pacote':'Cardápio'}</span><span>${brl(t.cardapio??t.pacote)}</span></div>${t.adicionais?`<div><span>Adicionais</span><span>${brl(t.adicionais)}</span></div>`:''}${t.desconto?`<div class="d"><span>Desconto</span><span>− ${brl(t.desconto)}</span></div>`:''}<div class="g"><span>Total</span><span>${brl(t.total)}</span></div></div>
   </div></article>`;
   $('#view').innerHTML=h;
 }
 function textoWhats(o){
-  const t=o.totais;let s=`*Proposta ${o.codigo}*\nCliente: ${o.cliente}\nEvento: ${o.tipo||'—'} · ${dataBR(o.data)}${o.horario?' às '+o.horario:''}\nConvidados: ${o.convidados}\nLocal: ${o.local||'—'}\n\n*${o.modo==='kits'?'Cardápio personalizado':'Cardápio '+o.pacote.nome}*\n`;
+  const t=o.totais;let s=`*Proposta ${o.codigo}*\nCliente: ${o.cliente}\nEvento: ${o.tipo||'—'} · ${dataBR(o.data)}${o.horario?' às '+o.horario:''}\nConvidados: ${o.convidados}\nLocal: ${o.local||'—'}\n\n*${o.pacote?'Cardápio '+o.pacote.nome+(o.kits?.length?' + kits':''):'Cardápio personalizado'}*\n`;
   blocosCardapio(o).forEach(x=>{s+=`\n_${x.nome}_\n`+x.itens.map(i=>`• ${i}`).join('\n')+'\n'});
   if(o.servico)s+=`\n_Equipe e serviço incluídos_\n`;
   if(o.adicionais.length)s+=`\n*Adicionais*\n`+o.adicionais.map(a=>`• ${a.nome}${a.unidade==='unidade'?` (${a.qtd})`:''}`).join('\n')+'\n';
@@ -565,8 +584,8 @@ async function gerarPdf(o,btn){
     const facts=[['Cliente',o.cliente],['Evento',o.tipo||'-'],['Data',dataBR(o.data)+(o.horario?' às '+o.horario:'')],['Convidados',String(o.convidados)],['Local',o.local||'-']];
     const cw=CW/2;facts.forEach((f,i)=>{const x=M+(i%2)*cw;if(i%2===0&&i>0)y+=12;doc.setFont('helvetica','bold');doc.setFontSize(7.5);col(MUT);doc.text(f[0].toUpperCase(),x,y,{charSpace:.3});doc.setFont('helvetica','normal');doc.setFontSize(10.5);col(INK);const l=doc.splitTextToSize(fix(f[1]),cw-6);doc.text(l[0]+(l.length>1?'…':''),x,y+5)});
     y+=17;doc.setDrawColor(...LINE);doc.setLineWidth(.3);doc.line(M,y,W-M,y);y+=11;
-    col(ACC);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(fix(o.modo==='kits'?'Cardápio personalizado':`Cardápio ${o.pacote.nome}`),M,y);y+=6;
-    const descr=o.modo==='kits'?(o.servico?'Montado com kits escolhidos para o seu evento. Equipe e serviço incluídos.':'Montado com kits escolhidos para o seu evento.'):o.pacote.descricao;
+    col(ACC);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(fix(o.pacote?`Cardápio ${o.pacote.nome}${o.kits?.length?' + kits':''}`:'Cardápio personalizado'),M,y);y+=6;
+    const descr=o.pacote?o.pacote.descricao:(o.servico?'Montado com kits escolhidos para o seu evento. Equipe e serviço incluídos.':'Montado com kits escolhidos para o seu evento.');
     if(descr){doc.setFont('helvetica','normal');doc.setFontSize(10);col(MUT);const l=doc.splitTextToSize(fix(descr),CW);doc.text(l,M,y);y+=l.length*4.6+2}
     y+=4;
     blocosCardapio(o).forEach(s=>{const rows=Math.ceil(s.itens.length/2);need(12+Math.min(rows,3)*6);
@@ -611,8 +630,8 @@ document.addEventListener('click',async e=>{
     case 'limpar':F=emptyForm();LS.del('orc_rascunho');menuAberto=null;renderNovo();break;
     case 'conv':{const n=Math.max(0,(num(F.convidados)||0)+(+k));F.convidados=String(n);const el=$('#f-conv');el.value=F.convidados;el.classList.remove('bad');saveRasc();atualizarResumo();if(pacoteDe()?.minimo)renderNovo();break}
     case 'tipo':F.tipo=F.tipo===k?'':k;re();break;
-    case 'pacote':if(F.pacoteId!==k){F.pacoteId=k;if(F.pacoteSnap&&F.pacoteSnap.id!==k)F.pacoteSnap=null;menuAberto=null}re();break;
-    case 'modo':if(F.modo!==k){F.modo=k}re();break;
+    case 'pacote':if(F.pacoteId===k){F.pacoteId=null;F.pacoteSnap=null;menuAberto=null;re();break}if(F.pacoteId!==k){F.pacoteId=k;if(F.pacoteSnap&&F.pacoteSnap.id!==k)F.pacoteSnap=null;menuAberto=null}re();break;
+    case 'box':F[k]=!(F[k]!==false);re();break;
     case 'kit':{if(F.kits[k])delete F.kits[k];else F.kits[k]=true;re();break}
     case 'menu':menuAberto=menuAberto===F.pacoteId?null:F.pacoteId;renderNovo();break;
     case 'ad':{const s=F.ads[k]||(F.ads[k]={on:false,qtd:1});s.on=!s.on;re();break}
@@ -621,7 +640,7 @@ document.addEventListener('click',async e=>{
     case 'salvar':salvar();break;
     case 'pdf':gerarPdf(ORCS.find(o=>o.id===route.id),b);break;
     case 'copiar':{const o=ORCS.find(x=>x.id===route.id);try{await navigator.clipboard.writeText(textoWhats(o));toast('Texto copiado. Cole no WhatsApp.')}catch{toast('Não foi possível copiar')}break}
-    case 'editar':case 'duplicar':{const o=ORCS.find(x=>x.id===route.id);F=Object.assign(emptyForm(),clone(o.form||{}),{editId:a==='editar'?o.id:null});if(a==='duplicar'){F.cliente='';F.telefone='';F.data=''}saveRasc();go('novo');break}
+    case 'editar':case 'duplicar':{const o=ORCS.find(x=>x.id===route.id);F=Object.assign(emptyForm(),clone(o.form||{}),{editId:a==='editar'?o.id:null});if(F.modo==='kits'){F.pacoteId=null;F.pacoteSnap=null}if(!o.pacote){F.pacoteId=null;F.pacoteSnap=null}if(a==='duplicar'){F.cliente='';F.telefone='';F.data=''}saveRasc();go('novo');break}
     case 'excluir':if(b.classList.contains('armed')){try{await apagarOrc(route.id);ORCS=ORCS.filter(o=>o.id!==route.id);toast('Orçamento excluído');go('lista')}catch(err){console.error(err);toast('Não foi possível excluir')}}
       else{b.classList.add('armed');b.textContent='Toque para confirmar';setTimeout(()=>{if(b.isConnected){b.classList.remove('armed');b.textContent='Excluir'}},4000)}break;
   }

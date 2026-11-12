@@ -94,6 +94,19 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
 .site-pk .sug{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:.84rem;color:var(--muted)}
 .site-pk .sug b{color:var(--ink);font-family:var(--f-num);font-weight:500}
 .site-pk.off .nm,.site-pk.off label.f{opacity:.5}
+.kit-sw{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;background:var(--sunk)}
+.kit-sw.on{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+.kit-sw-t{flex:1 1 240px;display:grid;gap:2px;min-width:0}
+.kit-sw-t b{font-family:var(--f-display);font-size:1rem}
+.kit-sw-t small{color:var(--muted);font-size:.84rem}
+.kit-sw label.f{width:200px}
+.sw{position:relative;display:inline-block;width:52px;height:30px;flex:none;cursor:pointer}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.sw .sl{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:background .15s}
+.sw .sl::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw input:checked+.sl{background:var(--accent)}
+.sw input:checked+.sl::after{transform:translateX(22px)}
+.sw input:focus-visible+.sl{outline:2px solid var(--accent);outline-offset:2px}
 .kit-tag{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:1px 9px;letter-spacing:.06em}
 .kit-cat{border-top:1px solid var(--line);padding-top:12px;display:grid;gap:4px}
 .kit-cat-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -814,7 +827,7 @@ function renderCad(){
     <button data-act="cadsub" data-k="porcoes" aria-pressed="${sub==='porcoes'}">Porcionamento</button>
     <button data-act="cadsub" data-k="empresa" aria-pressed="${sub==='empresa'}">Empresa e proposta</button></div>`;
   if(sub==='pacotes'){
-    h+=`<p class="hint">Monte os cardápios prontos (Atlas, Atlantidz, Premium…) marcando os pratos de cada estação. Para montar um <b>kit</b> (ex.: Kit Entrada Basic), crie aqui normalmente e escolha em “No site aparece como” a categoria do kit. No orçamento, o cardápio fixo é carregado e você ainda pode adicionar ou retirar itens. A margem do pacote, se preenchida, substitui a margem padrão.</p>`;
+    h+=`<p class="hint">Monte os cardápios prontos (Atlas, Atlantidz, Premium…) marcando os pratos de cada estação. Para montar um <b>kit</b> (ex.: Kit Entrada Básico), crie aqui normalmente e ligue a chave <b>“Kit para combinar”</b>. No orçamento, o cardápio fixo é carregado e você ainda pode adicionar ou retirar itens. A margem do pacote, se preenchida, substitui a margem padrão.</p>`;
     h+=togAll('pk-all',CAD.pacotes.length).replace(/todas/g,'todos');
     if(!CAD.pacotes.length)h+=`<div class="empty"><strong>Nenhum cardápio pronto</strong>Crie o primeiro, por exemplo “Atlas”.</div>`;
     CAD.pacotes.forEach((P,pi)=>{
@@ -823,8 +836,10 @@ function renderCad(){
       h+=`<details class="card ficha pacote" data-pid="${P.id}"${open?' open':''}><summary class="card-h"><div style="min-width:0"><span class="eyebrow">${P.kitCategoria?`<span class="kit-tag">Kit · ${esc(P.kitCategoria)}</span>`:'Cardápio pronto'}</span><h3 data-pkt="${pi}">${esc(P.nome||'Sem nome')}</h3><span class="muted" style="font-size:.84rem" data-pkref="${pi}">${ref}</span></div>${tog(open)}</summary>
       ${open?`<div class="card-h"><label class="f" style="flex:1 1 200px"><span class="eyebrow">Nome</span><input id="pk-${P.id}" data-f="cad" data-path="pacotes.${pi}.nome" value="${esc(P.nome)}" placeholder="Ex.: Premium" style="font-family:var(--f-display);font-weight:600;font-size:1.05rem"></label>
         <label class="f" style="width:120px">Margem (%)<input id="pkm-${P.id}" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="pacotes.${pi}.margem" value="${esc(nf(P.margem))}" placeholder="padrão"></label>
-        <label class="f" style="flex:1 1 220px">No site aparece como<select id="pkk-${P.id}" class="pk-tipo" data-f="cad" data-path="pacotes.${pi}.kitCategoria"><option value="">Pacote completo</option>${(CAD.tiposEstacao||[]).map(t=>`<option value="${esc(t.nome)}"${P.kitCategoria===t.nome?' selected':''}>Kit de ${esc(t.nome.toLowerCase())}</option>`).join('')}</select></label>
         <button class="btn ghost" data-act="rm-pacote" data-i="${pi}">Excluir</button></div>
+        <div class="kit-sw${P.kitCategoria?' on':''}"><label class="sw" title="Kit para combinar no site"><input type="checkbox" id="pkk-${P.id}" data-act="pk-kit" data-i="${pi}"${P.kitCategoria?' checked':''}><span class="sl" aria-hidden="true"></span></label>
+          <div class="kit-sw-t"><b>${P.kitCategoria?'É um kit para combinar':'Pacote completo'}</b><small>${P.kitCategoria?'No site aparece na caixa “Kits para combinar”, onde a equipe pode escolher vários juntos.':'Ligue a chave para virar kit: no site ele poderá ser escolhido junto com outros kits (entrada + principal + sobremesa…).'}</small></div>
+          ${P.kitCategoria?`<label class="f">Categoria do kit<select id="pkc-${P.id}" class="pk-tipo" data-f="cad" data-path="pacotes.${pi}.kitCategoria">${(CAD.tiposEstacao||[]).map(t=>`<option value="${esc(t.nome)}"${P.kitCategoria===t.nome?' selected':''}>${esc(t.nome)}</option>`).join('')}</select></label>`:''}</div>
         <label class="f">Descrição (aparece no PDF)<input id="pkd-${P.id}" data-f="cad" data-path="pacotes.${pi}.descricao" value="${esc(P.descricao)}" placeholder="Ex.: Coquetel completo com ilha de frios e sobremesas finas"></label>
         <div class="pk-grid">${CAD.estacoes.map(E=>`<fieldset class="pk-est"><legend>${esc(E.nome||'Estação')}</legend>${E.pratos.length?E.pratos.map(p=>`<label class="ck"><input type="checkbox" data-act="pk-toggle" data-i="${pi}" data-e="${E.id}" data-p="${p.id}"${sel.has(E.id+'|'+p.id)?' checked':''}> ${esc(p.nome||'Prato')}</label>`).join(''):'<span class="muted" style="font-size:.84rem">Sem pratos</span>'}</fieldset>`).join('')}</div>
         <p class="hint" data-pkref="${pi}">${ref}</p>`:''}</details>`;
@@ -1275,11 +1290,11 @@ function renderSite(){
   {const kp=kitMargemPadrao();const sv=sugestaoServico(ref);const svU=Math.ceil(sv);
   const KS=CAD.pacotes.filter(P=>P.kitCategoria);const cats=categoriasKits().filter(c=>KS.some(P=>P.kitCategoria===c));
   h+=`<div class="card"><div class="card-h"><div><span class="eyebrow">Montar o evento</span><h2>Kits por categoria</h2></div><button class="btn" data-act="site-kit-novo">+ Novo kit</button></div>
-    <p class="hint">Os kits são montados em <b>Cardápios prontos</b>: crie o cardápio, marque os pratos e escolha em “No site aparece como” a categoria do kit. Aqui você define o valor por convidado (só comida) e quais aparecem no site. A equipe e o serviço entram à parte, pelo valor abaixo.</p>
+    <p class="hint">Os kits são montados em <b>Cardápios prontos</b>: crie o cardápio, marque os pratos e ligue a chave “Kit para combinar”. Aqui você define o valor por convidado (só comida) e quais aparecem no site. A equipe e o serviço entram à parte, pelo valor abaixo.</p>
     <div class="grid-ev"><label class="f">Margem padrão dos kits (%)<input id="site-kmarg" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="site.kitMargem" value="${esc(nf(S.kitMargem))}" placeholder="${esc(nf(kp))}" title="Usada quando o kit não tem margem própria. Vazio = média das margens dos pacotes"></label>
       <label class="f">Equipe e serviço por convidado (R$)<input id="site-serv" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="site.servicoKits" value="${esc(nf(S.servicoKits))}" placeholder="${esc(nf(svU))}"></label>
       <div class="sug" style="grid-column:span 2;align-self:end;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.84rem;color:var(--muted)">Equipe sugerida para ${ref} convidados: <b style="font-family:var(--f-num);color:var(--ink);font-weight:500">${brl(sv)}</b><button class="btn ghost" style="color:var(--accent)" data-act="site-serv-usar" data-v="${svU}">Usar ${brl(svU)}</button></div></div>
-    ${!KS.length?`<div class="empty"><strong>Nenhum kit ainda</strong>Em Cardápios prontos, abra um cardápio (ex.: KIT ENTRADA BASIC) e escolha “Kit de entradas” em “No site aparece como”.</div>`:''}
+    ${!KS.length?`<div class="empty"><strong>Nenhum kit ainda</strong>Em Cardápios prontos, abra um cardápio (ex.: KIT ENTRADA BASICO) e ligue a chave “Kit para combinar”.</div>`:''}
     ${cats.map(cat=>{const L=KS.filter(P=>P.kitCategoria===cat);
       return `<div class="kit-cat"><div class="kit-cat-h"><b>${esc(cat)}</b><span class="muted">${L.length} kit${L.length>1?'s':''}</span></div>
       ${L.map(P=>{const c=sitePk(P);const g=sugestaoKit({itens:P.itens,margem:P.margem},ref);const sug=Math.ceil(g.pp);const nomes=secoesDeItens(P.itens).flatMap(x=>x.itens);
@@ -1315,12 +1330,13 @@ async function publicarSite(b){
   renderSite();
 }
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-act^="site-"]');if(!b)return;const a=b.dataset.act,S=CAD.site;
+  const b=e.target.closest('[data-act^="site-"],[data-act="pk-kit"]');if(!b)return;const a=b.dataset.act,S=CAD.site;
   if(a==='site-ativo'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).ativo=b.checked;saveCad();renderSite()}}
   if(a==='site-usar'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).preco=+b.dataset.v;saveCad();renderSite()}}
   if(a==='site-add-ad'){const x={id:uid(),nome:'',descricao:'',preco:'',unidade:'pessoa'};S.adicionais.push(x);saveCad();renderSite();$('#sa-n-'+x.id)?.focus()}
   if(a==='site-rm-ad'){S.adicionais.splice(+b.dataset.i,1);saveCad();renderSite()}
   if(a==='site-publicar')publicarSite(b);
+  if(a==='pk-kit'){const P=CAD.pacotes[+b.dataset.i];if(P){if(b.checked){const cnt={};P.itens.forEach(it=>{const t=CAD.estacoes.find(E=>E.id===it.estId)?.tipo;if(t)cnt[t]=(cnt[t]||0)+1});P.kitCategoria=Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0]?.[0]||(CAD.tiposEstacao||[])[0]?.nome||'Entradas';if(!CAD.site.pacotes[P.id])sitePk(P).ativo=true}else P.kitCategoria='';saveCad();renderCad()}}
   if(a==='site-serv-usar'){S.servicoKits=+b.dataset.v;saveCad();renderSite()}
   if(a==='site-kit-editar'){ui.pkOpen.add(b.dataset.k);setTab('pacotes');setTimeout(()=>document.querySelector(`[data-pid="${b.dataset.k}"]`)?.scrollIntoView({block:'start'}),50)}
   if(a==='site-kit-novo'){const cat=(CAD.tiposEstacao||[])[0]?.nome||'Entradas';const P={id:uid(),nome:'',descricao:'',margem:'',itens:[],kitCategoria:cat};CAD.pacotes.push(P);sitePk(P).ativo=true;ui.pkOpen.add(P.id);saveCad();setTab('pacotes');setTimeout(()=>{const el=document.getElementById('pk-'+P.id);el?.scrollIntoView({block:'center'});el?.focus()},50)}
