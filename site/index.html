@@ -116,6 +116,16 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:.7}
 .pk .ck{position:absolute;top:14px;right:14px;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;color:transparent}
 .pk[aria-checked="true"] .ck{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pk .ck svg{width:14px;height:14px}
+.seg.modo{justify-self:start}
+.seg.modo button{padding:9px 18px}
+.kgrp{display:grid;gap:10px}
+.kgrp+.kgrp{border-top:1px solid var(--line);padding-top:16px}
+.kgrp-h{display:flex;align-items:center;gap:10px}
+.kgrp-h h3{font-size:1.05rem;font-weight:600}
+.pill-ok{font-size:.78rem;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:2px 10px}
+.pk.kit .nm{font-size:1.08rem;padding-right:28px}
+.pk.kit .pr b{font-size:1.25rem}
+.pk .itens{font-size:.84rem;color:var(--muted);line-height:1.45}
 .menu{border-top:1px solid var(--line);padding-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 20px}
 .menu h4{margin:0 0 4px;font:600 .72rem var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .menu ul{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:.93rem}
@@ -300,8 +310,8 @@ function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTim
 
 /* ===== estado ===== */
 let sb=null, CAT=null, ORCS=[], route={v:'lista',id:null};
-const emptyForm=()=>({editId:null,cliente:'',telefone:'',data:'',horario:'',tipo:'',convidados:'',local:'',observacoes:'',pacoteId:null,pacoteSnap:null,ads:{},descModo:'pct',descValor:''});
-let F=Object.assign(emptyForm(),LS.get('orc_rascunho',{}));
+const emptyForm=()=>({editId:null,cliente:'',telefone:'',data:'',horario:'',tipo:'',convidados:'',local:'',observacoes:'',pacoteId:null,pacoteSnap:null,modo:'pacote',kits:{},kitSnaps:{},servicoSnap:null,ads:{},descModo:'pct',descValor:''});
+let F=Object.assign(emptyForm(),LS.get('orc_rascunho',{}));if(!F.kits)F.kits={};if(!F.kitSnaps)F.kitSnaps={};if(!F.modo)F.modo='pacote';
 let menuAberto=null, salvando=false;
 const saveRasc=()=>LS.set('orc_rascunho',F);
 
@@ -329,11 +339,18 @@ function adicionaisLista(f=F){
 }
 function adPreco(a,f=F){const s=f.ads[a.id];return s?.snap?.preco??a.preco}
 function valorAd(a,n,f=F){const p=adPreco(a,f),s=f.ads[a.id];if(a.unidade==='pessoa')return p*n;if(a.unidade==='unidade')return p*Math.max(1,num(s?.qtd)||1);return p}
+function kitsLista(f=F){const base=(CAT?.kits||[]).map(k=>f.kitSnaps?.[k.id]||k);Object.values(f.kitSnaps||{}).forEach(k=>{if(!base.some(x=>x.id===k.id))base.push(k)});return base}
+function categoriasLista(f=F){const c=[...(CAT?.categoriasKits||[])];kitsLista(f).forEach(k=>{if(!c.includes(k.categoria))c.push(k.categoria)});return c}
+const temKits=()=>!!(CAT?.kits?.length)||Object.keys(F.kitSnaps||{}).length>0;
+function servicoPreco(f=F){return f.servicoSnap??(CAT?.servicoKits||0)}
 function calc(f=F){
   const n=Math.max(0,Math.round(num(f.convidados)||0));
-  const P=pacoteDe(f);
-  const cobrados=P?Math.max(n,P.minimo||0):0;
-  const pacote=P?P.preco*cobrados:0;
+  const kitsMode=f.modo==='kits';
+  const P=kitsMode?null:pacoteDe(f);
+  const kits=kitsMode?kitsLista(f).filter(k=>f.kits[k.id]).map(k=>({...clone(k),valor:k.preco*n})):[];
+  const servico=kitsMode&&kits.length&&servicoPreco(f)>0?{preco:servicoPreco(f),valor:servicoPreco(f)*n}:null;
+  const cobrados=P?Math.max(n,P.minimo||0):n;
+  const pacote=kitsMode?kits.reduce((a,k)=>a+k.valor,0)+(servico?.valor||0):(P?P.preco*cobrados:0);
   const ads=adicionaisLista(f).filter(a=>f.ads[a.id]?.on).map(a=>({id:a.id,nome:a.nome,descricao:a.descricao||'',unidade:a.unidade,preco:adPreco(a,f),qtd:a.unidade==='unidade'?Math.max(1,num(f.ads[a.id]?.qtd)||1):(a.unidade==='pessoa'?n:1),valor:valorAd(a,n,f)}));
   const adicionais=ads.reduce((s,a)=>s+a.valor,0);
   const max=CAT?.descontoMax;const dv=Math.max(0,num(f.descValor)||0);
@@ -342,9 +359,11 @@ function calc(f=F){
   if(desconto>pacote){desconto=pacote;limitado=true}
   desconto=Math.round(desconto*100)/100;
   const total=pacote+adicionais-desconto;
-  return{n,P,cobrados,pacote,ads,adicionais,desconto,limitado,total,porPessoa:n?total/n:0};
+  return{n,modo:kitsMode?'kits':'pacote',P,kits,servico,cobrados,pacote,ads,adicionais,desconto,limitado,total,porPessoa:n?total/n:0};
 }
-function faltando(f=F){const m=[];if(!f.cliente.trim())m.push('nome do cliente');if(!(num(f.convidados)>0))m.push('número de convidados');if(!pacoteDe(f))m.push('pacote');return m}
+function faltando(f=F){const m=[];if(!f.cliente.trim())m.push('nome do cliente');if(!(num(f.convidados)>0))m.push('número de convidados');if(f.modo==='kits'){if(!kitsLista(f).some(k=>f.kits[k.id]))m.push('pelo menos um kit')}else if(!pacoteDe(f))m.push('pacote');return m}
+const cardapioNome=o=>o.modo==='kits'?'Montado com kits':(o.pacote?.nome||'');
+const blocosCardapio=o=>o.modo==='kits'?o.kits.map(k=>({nome:`${k.categoria} · ${k.nome}`,itens:k.secoes.flatMap(x=>x.itens)})):o.pacote.secoes;
 
 /* ===== navegação ===== */
 function go(v,id=null){
@@ -365,7 +384,7 @@ function render(){
 let busca='';
 function renderLista(){
   const q=busca.trim().toLowerCase();
-  const itens=ORCS.filter(o=>!q||[o.cliente,o.codigo,o.pacote?.nome,o.tipo,o.local].join(' ').toLowerCase().includes(q));
+  const itens=ORCS.filter(o=>!q||[o.cliente,o.codigo,cardapioNome(o),...(o.kits||[]).map(k=>k.nome),o.tipo,o.local].join(' ').toLowerCase().includes(q));
   const temRasc=!!(F.cliente||F.pacoteId);
   let h=`<div class="page-h"><div><h1>Orçamentos</h1><p>${ORCS.length?`${ORCS.length} orçamento${ORCS.length>1?'s':''} salvo${ORCS.length>1?'s':''}`:'Os orçamentos salvos aparecem aqui.'}</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${temRasc?`<button class="btn" data-go="novo">Continuar rascunho</button>`:''}<button class="btn primary big" data-act="novo">+ Novo orçamento</button></div></div>`;
@@ -374,7 +393,7 @@ function renderLista(){
   else if(!itens.length)h+=`<div class="empty"><strong>Nada encontrado</strong>Tente outro nome ou código.</div>`;
   else h+=`<div class="list">${itens.map(o=>{const d=o.data?o.data.split('-'):null;return `<button class="row" data-ver="${esc(o.id)}">
       <span class="dt">${d?`<b>${d[2]}</b><span>${MES[+d[1]-1]} ${d[0]}</span>`:`<b>—</b><span>sem data</span>`}</span>
-      <span class="who"><b>${esc(o.cliente||'Cliente')}</b><span>${esc(o.pacote?.nome||'')} · ${o.convidados} convidados${o.tipo?' · '+esc(o.tipo):''}</span></span>
+      <span class="who"><b>${esc(o.cliente||'Cliente')}</b><span>${esc(cardapioNome(o))} · ${o.convidados} convidados${o.tipo?' · '+esc(o.tipo):''}</span></span>
       <span class="val"><b>${brl(o.totais.total)}</b><span>${esc(o.codigo)}</span></span></button>`}).join('')}</div>`;
   $('#view').innerHTML=h;
 }
@@ -401,15 +420,17 @@ function renderNovo(){
   // 2 pacote
   const pks=[...CAT.pacotes];const snap=f.pacoteSnap;if(snap&&!pks.some(p=>p.id===snap.id))pks.push(snap);
   const P=c.P;
-  h+=`<section class="step"><div class="step-h"><span class="n">2</span><h2>Pacote</h2><span class="hint">valor por convidado</span></div>
-    ${pks.length?`<div class="pk-grid" role="radiogroup" aria-label="Pacote">${pks.map(p0=>{const p=snap&&snap.id===p0.id?snap:p0;return `<button type="button" class="pk" role="radio" aria-checked="${f.pacoteId===p.id}" data-act="pacote" data-k="${esc(p.id)}">
+  const kitsMode=f.modo==='kits';
+  h+=`<section class="step"><div class="step-h"><span class="n">2</span><h2>Cardápio</h2><span class="hint">valor por convidado</span></div>
+    ${temKits()?`<span class="seg modo" role="group" aria-label="Como montar o cardápio"><button type="button" data-act="modo" data-k="pacote" aria-pressed="${!kitsMode}">Pacote pronto</button><button type="button" data-act="modo" data-k="kits" aria-pressed="${kitsMode}">Montar com kits</button></span>`:''}
+    ${kitsMode?renderKits(c):`${pks.length?`<div class="pk-grid" role="radiogroup" aria-label="Pacote">${pks.map(p0=>{const p=snap&&snap.id===p0.id?snap:p0;return `<button type="button" class="pk" role="radio" aria-checked="${f.pacoteId===p.id}" data-act="pacote" data-k="${esc(p.id)}">
         <span class="ck">${ICO.check}</span><span class="nm">${esc(p.nome)}</span>
         <span class="pr"><b>${brl0(p.preco)}</b><small>por convidado</small></span>
         ${p.descricao?`<span class="ds">${esc(p.descricao)}</span>`:''}
         ${p.minimo?`<span class="mn">Mínimo ${p.minimo} convidados</span>`:''}</button>`}).join('')}</div>`:`<p class="note">Nenhum pacote publicado.</p>`}
     ${P?`<div class="menu-h"><b>Cardápio ${esc(P.nome)}</b><button class="btn ghost" data-act="menu">${menuAberto===P.id?'Esconder cardápio':'Ver cardápio completo'}</button></div>
       ${menuAberto===P.id?`<div class="menu">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div>`:''}
-      ${c.n&&P.minimo&&c.n<P.minimo?`<p class="note warn">Este pacote tem mínimo de ${P.minimo} convidados. O valor considera ${P.minimo}.</p>`:''}`:''}
+      ${c.n&&P.minimo&&c.n<P.minimo?`<p class="note warn">Este pacote tem mínimo de ${P.minimo} convidados. O valor considera ${P.minimo}.</p>`:''}`:''}`}
   </section>`;
   // 3 adicionais
   const ads=adicionaisLista();
@@ -422,7 +443,7 @@ function renderNovo(){
   </section>`;
   // 4 desconto
   const max=CAT.descontoMax;
-  h+=`<section class="step"><div class="step-h"><span class="n">4</span><h2>Desconto</h2><span class="hint">sobre o pacote${max!=null?` · até ${nf(max)}%`:''}</span></div>
+  h+=`<section class="step"><div class="step-h"><span class="n">4</span><h2>Desconto</h2><span class="hint">sobre o cardápio${max!=null?` · até ${nf(max)}%`:''}</span></div>
     <div class="desc-row"><span class="seg" role="group" aria-label="Tipo de desconto"><button type="button" data-act="dmodo" data-k="pct" aria-pressed="${f.descModo==='pct'}">%</button><button type="button" data-act="dmodo" data-k="rs" aria-pressed="${f.descModo==='rs'}">R$</button></span>
       <label class="f">${f.descModo==='pct'?'Percentual':'Valor em reais'}<input class="in num" id="f-desc" data-f="descValor" inputmode="decimal" value="${esc(f.descValor)}" placeholder="0"></label></div>
     <p class="note" id="desc-note"></p>
@@ -440,32 +461,44 @@ function atualizarResumo(){
   if(route.v!=='novo'||!CAT)return;const c=calc();const P=c.P;
   const L=[];
   if(P)L.push([`${P.nome} · ${c.cobrados} × ${brl0(P.preco)}`,brl(c.pacote)]);
+  c.kits.forEach(k=>L.push([`${k.nome} · ${c.n} × ${brl0(k.preco)}`,brl(k.valor)]));
+  if(c.servico)L.push([`Equipe e serviço · ${c.n} × ${brl0(c.servico.preco)}`,brl(c.servico.valor)]);
   c.ads.forEach(a=>L.push([a.unidade==='unidade'?`${a.nome} (${a.qtd})`:a.nome,brl(a.valor)]));
   if(c.desconto>0)L.push([`Desconto${F.descModo==='pct'&&!c.limitado?` ${nf(num(F.descValor))}%`:''}`,'− '+brl(c.desconto),'disc']);
   $('#s-tit').textContent=F.cliente.trim()||'Novo orçamento';
-  $('#s-lines').innerHTML=L.length?L.map(([a,b,k])=>`<div class="${k||''}"><span>${esc(a)}</span><span>${b}</span></div>`).join(''):`<div><span>Escolha um pacote para ver o valor.</span></div>`;
+  $('#s-lines').innerHTML=L.length?L.map(([a,b,k])=>`<div class="${k||''}"><span>${esc(a)}</span><span>${b}</span></div>`).join(''):`<div><span>${F.modo==='kits'?'Escolha os kits para ver o valor.':'Escolha um pacote para ver o valor.'}</span></div>`;
   $('#s-total').textContent=brl(c.total);
   $('#s-pp').textContent=c.n?`${brl(c.porPessoa)} por convidado · ${c.n} convidados`:'Informe os convidados';
   const m=faltando();$('#s-miss').textContent=m.length?'Falta: '+m.join(', ')+'.':'';
   const mt=$('#m-total'),ms=$('#m-sub');if(mt){mt.textContent=brl(c.total);ms.textContent=m.length?'Falta: '+m.join(', '):(c.n?`${brl(c.porPessoa)} por convidado`:'Total')}
   const dn=$('#desc-note');if(dn){const max=CAT.descontoMax;
-    if(c.limitado&&max!=null&&num(F.descValor)){dn.className='note warn';dn.textContent=`Limite de desconto: ${nf(max)}% do pacote (${brl(c.pacote*max/100)}). Aplicado ${brl(c.desconto)}.`}
-    else if(c.desconto>0){dn.className='note';dn.textContent=`Desconto de ${brl(c.desconto)}${F.descModo==='rs'&&c.pacote?` (${nf(Math.round(c.desconto/c.pacote*1000)/10)}% do pacote)`:''}.`}
-    else{dn.className='note';dn.textContent=max!=null?`Desconto máximo permitido: ${nf(max)}% do valor do pacote.`:'Sem desconto.'}}
+    if(c.limitado&&max!=null&&num(F.descValor)){dn.className='note warn';dn.textContent=`Limite de desconto: ${nf(max)}% do cardápio (${brl(c.pacote*max/100)}). Aplicado ${brl(c.desconto)}.`}
+    else if(c.desconto>0){dn.className='note';dn.textContent=`Desconto de ${brl(c.desconto)}${F.descModo==='rs'&&c.pacote?` (${nf(Math.round(c.desconto/c.pacote*1000)/10)}% do cardápio)`:''}.`}
+    else{dn.className='note';dn.textContent=max!=null?`Desconto máximo permitido: ${nf(max)}% do valor do cardápio.`:'Sem desconto.'}}
+}
+
+function renderKits(c){
+  const ks=kitsLista();const cats=categoriasLista();const sv=servicoPreco();
+  return `<p class="note">Escolha um ou mais kits de cada categoria. Cada kit é cobrado por convidado.${sv>0?` Equipe e serviço (${brl0(sv)} por convidado) entram automaticamente.`:''}</p>
+  ${cats.map(cat=>{const L=ks.filter(k=>k.categoria===cat);if(!L.length)return '';const sel=L.filter(k=>F.kits[k.id]).length;
+    return `<div class="kgrp"><div class="kgrp-h"><h3>${esc(cat)}</h3>${sel?`<span class="pill-ok">${sel} escolhido${sel>1?'s':''}</span>`:''}</div>
+    <div class="pk-grid">${L.map(k=>{const on=!!F.kits[k.id];const itens=k.secoes.flatMap(x=>x.itens);return `<button type="button" class="pk kit" role="checkbox" aria-checked="${on}" data-act="kit" data-k="${esc(k.id)}">
+      <span class="ck">${ICO.check}</span><span class="nm">${esc(k.nome)}</span><span class="pr"><b>${brl0(k.preco)}</b><small>por convidado</small></span>
+      ${k.descricao?`<span class="ds">${esc(k.descricao)}</span>`:''}<span class="itens">${itens.map(esc).join(' · ')}</span></button>`}).join('')}</div></div>`}).join('')}`;
 }
 
 /* ===== salvar ===== */
 async function salvar(){
   if(salvando)return;const m=faltando();
-  if(m.length){toast('Falta: '+m.join(', '));const id=!F.cliente.trim()?'f-cliente':!(num(F.convidados)>0)?'f-conv':null;if(id){const el=$('#'+id);el.classList.add('bad');el.focus();el.scrollIntoView({block:'center'})}else document.querySelector('.pk-grid')?.scrollIntoView({block:'center'});return}
+  if(m.length){toast('Falta: '+m.join(', '));const id=!F.cliente.trim()?'f-cliente':!(num(F.convidados)>0)?'f-conv':null;if(id){const el=$('#'+id);el.classList.add('bad');el.focus();el.scrollIntoView({block:'center'})}else document.querySelector('.step:nth-child(2)')?.scrollIntoView({block:'start'});return}
   const c=calc();const now=new Date().toISOString();const prev=F.editId?ORCS.find(o=>o.id===F.editId):null;
   const id=prev?prev.id:uid();const d=now.slice(2,10).replace(/-/g,'');
   const o={id,codigo:prev?prev.codigo:`AT-${d}-${id.slice(0,3).toUpperCase()}`,criadoEm:prev?prev.criadoEm:now,atualizadoEm:now,
     criadoPor:prev?.criadoPor||(await sb.auth.getUser()).data?.user?.email||'',
     cliente:F.cliente.trim(),telefone:F.telefone.trim(),data:F.data,horario:F.horario,tipo:F.tipo,convidados:c.n,local:F.local.trim(),observacoes:F.observacoes.trim(),
-    pacote:clone(c.P),cobrados:c.cobrados,adicionais:c.ads,desconto:{modo:F.descModo,valor:num(F.descValor)||0,aplicado:c.desconto},
-    totais:{pacote:c.pacote,adicionais:c.adicionais,desconto:c.desconto,total:c.total,porPessoa:c.porPessoa},
-    form:clone({...F,editId:null,pacoteSnap:c.P,ads:Object.fromEntries(c.ads.map(a=>[a.id,{on:true,qtd:a.qtd,snap:{id:a.id,nome:a.nome,descricao:a.descricao,preco:a.preco,unidade:a.unidade}}]))})};
+    modo:c.modo,pacote:c.P?clone(c.P):null,kits:c.kits.map(k=>({id:k.id,nome:k.nome,categoria:k.categoria,descricao:k.descricao||'',preco:k.preco,valor:k.valor,secoes:k.secoes})),servico:c.servico,cobrados:c.cobrados,adicionais:c.ads,desconto:{modo:F.descModo,valor:num(F.descValor)||0,aplicado:c.desconto},
+    totais:{cardapio:c.pacote,pacote:c.pacote,adicionais:c.adicionais,desconto:c.desconto,total:c.total,porPessoa:c.porPessoa},
+    form:clone({...F,editId:null,pacoteSnap:c.P,kits:Object.fromEntries(c.kits.map(k=>[k.id,true])),kitSnaps:Object.fromEntries(c.kits.map(k=>{const {valor,...r}=k;return [k.id,r]})),servicoSnap:c.modo==='kits'?servicoPreco():null,ads:Object.fromEntries(c.ads.map(a=>[a.id,{on:true,qtd:a.qtd,snap:{id:a.id,nome:a.nome,descricao:a.descricao,preco:a.preco,unidade:a.unidade}}]))})};
   salvando=true;document.querySelectorAll('[data-act="salvar"]').forEach(b=>{b.disabled=true;b.textContent='Salvando…'});
   try{await gravarOrc(o);const i=ORCS.findIndex(x=>x.id===id);if(i>=0)ORCS[i]=o;else ORCS.unshift(o);
     F=emptyForm();LS.del('orc_rascunho');toast(prev?'Orçamento atualizado':'Orçamento salvo');go('ver',id)}
@@ -485,18 +518,22 @@ function renderVer(){
     <div class="tot"><b>${brl(t.total)}</b><span>${brl(t.porPessoa)} por convidado</span></div></div>
   <div class="doc-body">
     <dl class="facts"><div><dt>Convidados</dt><dd>${o.convidados}</dd></div><div><dt>Local</dt><dd>${esc(o.local||'—')}</dd></div><div><dt>Telefone</dt><dd>${esc(o.telefone||'—')}</dd></div><div><dt>Feito por</dt><dd>${esc((o.criadoPor||'').split('@')[0]||'—')}</dd></div><div><dt>Atualizado</dt><dd>${new Date(o.atualizadoEm).toLocaleDateString('pt-BR')}</dd></div></dl>
-    <section><div class="sec-h"><h3>Pacote ${esc(P.nome)}</h3><span>${o.cobrados} × ${brl0(P.preco)} = ${brl(t.pacote)}</span></div>
+    ${o.modo==='kits'?`<section><div class="sec-h"><h3>Cardápio montado com kits</h3><span>${brl(t.cardapio??t.pacote)}</span></div>
+      <table>${o.kits.map(k=>`<tr><td><b>${esc(k.nome)}</b> <span class="note">· ${esc(k.categoria)}</span><br><span class="note">${k.secoes.flatMap(x=>x.itens).map(esc).join(' · ')}</span></td><td class="r">${o.convidados} × ${brl0(k.preco)}<br>${brl(k.valor)}</td></tr>`).join('')}
+      ${o.servico?`<tr><td><b>Equipe e serviço</b></td><td class="r">${o.convidados} × ${brl0(o.servico.preco)}<br>${brl(o.servico.valor)}</td></tr>`:''}</table></section>`
+    :`<section><div class="sec-h"><h3>Pacote ${esc(P.nome)}</h3><span>${o.cobrados} × ${brl0(P.preco)} = ${brl(t.pacote)}</span></div>
       ${P.descricao?`<p class="note" style="margin-bottom:12px">${esc(P.descricao)}</p>`:''}
-      <div class="menu" style="border:0;padding:0">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></section>
+      <div class="menu" style="border:0;padding:0">${P.secoes.map(s=>`<div><h4>${esc(s.nome)}</h4><ul>${s.itens.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}</div></section>`}
     ${o.adicionais.length?`<section><div class="sec-h"><h3>Adicionais</h3><span>${brl(t.adicionais)}</span></div><table>${o.adicionais.map(a=>`<tr><td>${esc(a.nome)}<br><span class="note">${a.unidade==='pessoa'?`${a.qtd} convidados × ${brl0(a.preco)}`:a.unidade==='unidade'?`${a.qtd} × ${brl0(a.preco)}`:'valor fixo'}</span></td><td class="r">${brl(a.valor)}</td></tr>`).join('')}</table></section>`:''}
     ${o.observacoes?`<section><div class="sec-h"><h3>Observações</h3></div><p class="obs">${esc(o.observacoes)}</p></section>`:''}
-    <div class="totbox"><div><span>Pacote</span><span>${brl(t.pacote)}</span></div>${t.adicionais?`<div><span>Adicionais</span><span>${brl(t.adicionais)}</span></div>`:''}${t.desconto?`<div class="d"><span>Desconto</span><span>− ${brl(t.desconto)}</span></div>`:''}<div class="g"><span>Total</span><span>${brl(t.total)}</span></div></div>
+    <div class="totbox"><div><span>${o.modo==='kits'?'Cardápio':'Pacote'}</span><span>${brl(t.cardapio??t.pacote)}</span></div>${t.adicionais?`<div><span>Adicionais</span><span>${brl(t.adicionais)}</span></div>`:''}${t.desconto?`<div class="d"><span>Desconto</span><span>− ${brl(t.desconto)}</span></div>`:''}<div class="g"><span>Total</span><span>${brl(t.total)}</span></div></div>
   </div></article>`;
   $('#view').innerHTML=h;
 }
 function textoWhats(o){
-  const t=o.totais;let s=`*Proposta ${o.codigo}*\nCliente: ${o.cliente}\nEvento: ${o.tipo||'—'} · ${dataBR(o.data)}${o.horario?' às '+o.horario:''}\nConvidados: ${o.convidados}\nLocal: ${o.local||'—'}\n\n*Cardápio ${o.pacote.nome}*\n`;
-  o.pacote.secoes.forEach(x=>{s+=`\n_${x.nome}_\n`+x.itens.map(i=>`• ${i}`).join('\n')+'\n'});
+  const t=o.totais;let s=`*Proposta ${o.codigo}*\nCliente: ${o.cliente}\nEvento: ${o.tipo||'—'} · ${dataBR(o.data)}${o.horario?' às '+o.horario:''}\nConvidados: ${o.convidados}\nLocal: ${o.local||'—'}\n\n*${o.modo==='kits'?'Cardápio personalizado':'Cardápio '+o.pacote.nome}*\n`;
+  blocosCardapio(o).forEach(x=>{s+=`\n_${x.nome}_\n`+x.itens.map(i=>`• ${i}`).join('\n')+'\n'});
+  if(o.servico)s+=`\n_Equipe e serviço incluídos_\n`;
   if(o.adicionais.length)s+=`\n*Adicionais*\n`+o.adicionais.map(a=>`• ${a.nome}${a.unidade==='unidade'?` (${a.qtd})`:''}`).join('\n')+'\n';
   if(o.observacoes)s+=`\n*Observações*\n${o.observacoes}\n`;
   if(t.desconto)s+=`\nValor: ${brl(t.total+t.desconto)}\nDesconto: − ${brl(t.desconto)}`;
@@ -528,10 +565,11 @@ async function gerarPdf(o,btn){
     const facts=[['Cliente',o.cliente],['Evento',o.tipo||'-'],['Data',dataBR(o.data)+(o.horario?' às '+o.horario:'')],['Convidados',String(o.convidados)],['Local',o.local||'-']];
     const cw=CW/2;facts.forEach((f,i)=>{const x=M+(i%2)*cw;if(i%2===0&&i>0)y+=12;doc.setFont('helvetica','bold');doc.setFontSize(7.5);col(MUT);doc.text(f[0].toUpperCase(),x,y,{charSpace:.3});doc.setFont('helvetica','normal');doc.setFontSize(10.5);col(INK);const l=doc.splitTextToSize(fix(f[1]),cw-6);doc.text(l[0]+(l.length>1?'…':''),x,y+5)});
     y+=17;doc.setDrawColor(...LINE);doc.setLineWidth(.3);doc.line(M,y,W-M,y);y+=11;
-    col(ACC);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(fix(`Cardápio ${o.pacote.nome}`),M,y);y+=6;
-    if(o.pacote.descricao){doc.setFont('helvetica','normal');doc.setFontSize(10);col(MUT);const l=doc.splitTextToSize(fix(o.pacote.descricao),CW);doc.text(l,M,y);y+=l.length*4.6+2}
+    col(ACC);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(fix(o.modo==='kits'?'Cardápio personalizado':`Cardápio ${o.pacote.nome}`),M,y);y+=6;
+    const descr=o.modo==='kits'?(o.servico?'Montado com kits escolhidos para o seu evento. Equipe e serviço incluídos.':'Montado com kits escolhidos para o seu evento.'):o.pacote.descricao;
+    if(descr){doc.setFont('helvetica','normal');doc.setFontSize(10);col(MUT);const l=doc.splitTextToSize(fix(descr),CW);doc.text(l,M,y);y+=l.length*4.6+2}
     y+=4;
-    o.pacote.secoes.forEach(s=>{const rows=Math.ceil(s.itens.length/2);need(12+Math.min(rows,3)*6);
+    blocosCardapio(o).forEach(s=>{const rows=Math.ceil(s.itens.length/2);need(12+Math.min(rows,3)*6);
       col(ACC);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(fix(s.nome).toUpperCase(),M,y,{charSpace:.4});y+=2.5;doc.setDrawColor(...LINE);doc.line(M,y,W-M,y);y+=6;
       doc.setFont('helvetica','normal');doc.setFontSize(10.5);col(INK);
       for(let r=0;r<rows;r++){need(6);[0,1].forEach(c=>{const nm=s.itens[r*2+c];if(!nm)return;const x=M+c*cw;doc.setFillColor(...WAVE);doc.circle(x+1.2,y-1.3,.8,'F');const l=doc.splitTextToSize(fix(nm),cw-8);doc.text(l[0]+(l.length>1?'…':''),x+4.5,y)});y+=6}
@@ -574,6 +612,8 @@ document.addEventListener('click',async e=>{
     case 'conv':{const n=Math.max(0,(num(F.convidados)||0)+(+k));F.convidados=String(n);const el=$('#f-conv');el.value=F.convidados;el.classList.remove('bad');saveRasc();atualizarResumo();if(pacoteDe()?.minimo)renderNovo();break}
     case 'tipo':F.tipo=F.tipo===k?'':k;re();break;
     case 'pacote':if(F.pacoteId!==k){F.pacoteId=k;if(F.pacoteSnap&&F.pacoteSnap.id!==k)F.pacoteSnap=null;menuAberto=null}re();break;
+    case 'modo':if(F.modo!==k){F.modo=k}re();break;
+    case 'kit':{if(F.kits[k])delete F.kits[k];else F.kits[k]=true;re();break}
     case 'menu':menuAberto=menuAberto===F.pacoteId?null:F.pacoteId;renderNovo();break;
     case 'ad':{const s=F.ads[k]||(F.ads[k]={on:false,qtd:1});s.on=!s.on;re();break}
     case 'qtd':{const s=F.ads[k];if(s){s.qtd=Math.max(1,(num(s.qtd)||1)+(+b.dataset.v));const el=document.getElementById('q-'+k);if(el)el.value=s.qtd;saveRasc();atualizarResumo()}break}
