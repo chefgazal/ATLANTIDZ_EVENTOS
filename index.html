@@ -86,6 +86,20 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
 .station{border-left:0}
 .station .card-h .tot{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
 .pill{font:500 .74rem var(--f-body);padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.site-pk{display:grid;grid-template-columns:auto minmax(0,1fr) 150px 110px;gap:10px 14px;align-items:center;padding-block:12px;border-top:1px solid var(--line)}
+.site-pk:first-of-type{border-top:0}
+.site-pk .nm b{font-family:var(--f-display);font-size:1.02rem}
+.site-pk .nm small{display:block;color:var(--muted);font-size:.8rem}
+.site-pk .sug{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:.84rem;color:var(--muted)}
+.site-pk .sug b{color:var(--ink);font-family:var(--f-num);font-weight:500}
+.site-pk.off .nm,.site-pk.off label.f{opacity:.5}
+.site-ad{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.6fr) 120px 150px auto;gap:8px;align-items:end;padding-block:8px;border-top:1px solid var(--line)}
+@media (max-width:720px){.site-pk{grid-template-columns:auto minmax(0,1fr)}.site-pk label.f{grid-column:2}.site-ad{grid-template-columns:1fr 1fr}.site-ad .wide{grid-column:1/-1}}
+.pub{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.pub .st{flex:1 1 240px;display:grid;gap:2px}
+.pub .st b{font-family:var(--f-display);font-size:1.05rem}
+.pill.ok{background:var(--accent-soft);color:var(--accent)}
 .pill.warn{background:var(--hi-soft);color:var(--hi)}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:6;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px))}
 .bar .in{max-width:1080px;margin:0 auto;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
@@ -230,6 +244,7 @@ body.tem-savebar .bar{bottom:64px}
     <section class="panel" id="p-custos" hidden></section>
     <section class="panel" id="p-orcamento" hidden></section>
     <section class="panel" id="p-fichas" hidden></section>
+    <section class="panel" id="p-site" hidden></section>
   </main>
 </div>
 <div class="bar" id="bar" hidden></div>
@@ -333,7 +348,7 @@ let ORCS=[];
 const emptyDraft=()=>({telefone:'',custosConfirmados:false,turno:'dia',drinks:false,eqAjuste:{},cliente:'',data:'',tipoId:'',convidados:'100',local:'',horario:'',estacoes:[],equipe:[],extras:[],margemComida:'35',margemEquipe:'20',editingId:null,pacoteId:null,observacoes:''});
 let DRAFT=Object.assign(emptyDraft(),LS.get('pe_draft',{}));
 let ui={tab:'capa',cadSub:'estacoes',orcSel:null,showInt:false,ftSub:'fichas',ftCat:'',ftOpen:new Set(),ftQ:'',imp:null,pkOpen:new Set(),estOpen:new Set(),dFechadas:new Set(),eqOpen:new Set()};
-ui.tab=(['capa','cadastro','pacotes','cardapio','custos','orcamento','fichas'].includes(location.hash.slice(1))?location.hash.slice(1):'capa');
+ui.tab=(['capa','cadastro','pacotes','cardapio','custos','orcamento','fichas','site'].includes(location.hash.slice(1))?location.hash.slice(1):'capa');
 ui.cadSub=LS.get('pe_cadsub','estacoes');
 
 const TIPOS_EST_PADRAO=[{id:'te-ent',nome:'Entradas',regra:'salgados'},{id:'te-pri',nome:'Pratos Principais',regra:'proteina'},{id:'te-gua',nome:'Guarnições',regra:'guarnicao'},
@@ -341,7 +356,11 @@ const TIPOS_EST_PADRAO=[{id:'te-ent',nome:'Entradas',regra:'salgados'},{id:'te-p
 const REGRAS_TIPO={'':'Sem regra (usa a porção da ficha)',salgados:'Salgados divididos por pessoa',proteina:'Proteína (100 g de cada quando há duas)',guarnicao:'Guarnição (g por pessoa)',bebidas:'Bebidas (regra dos sucos)',sobremesa:'Sobremesa (g por pessoa, total)'};
 function normCad(c){c=c||{};return{tiposEstacao:(c.tiposEstacao?.length?c.tiposEstacao:clone(TIPOS_EST_PADRAO)),tiposEvento:(c.tiposEvento||[]),estacoes:(c.estacoes||[]).map(e=>({...e,pratos:e.pratos||[]})),setores:(c.setores||[]).map(s=>({...s,funcoes:s.funcoes||[]})),
   pacotes:(c.pacotes||[]).map(p=>({...p,itens:p.itens||[]})),empresa:Object.assign({nome:'',contato:'',obs:'Proposta válida por 15 dias. Reserva da data mediante sinal de 50%.'},c.empresa||{}),
-  equipeValores:(c.equipeValores||{}),regras:Object.assign({salgados:9,proteinaDupla:100,guarnicao:150,sucoLitros:2,sucoPessoas:4,sobremesa:120},c.regras||{})}}
+  equipeValores:(c.equipeValores||{}),regras:Object.assign({salgados:9,proteinaDupla:100,guarnicao:150,sucoLitros:2,sucoPessoas:4,sobremesa:120},c.regras||{}),
+  site:normSite(c.site)}}
+function normSite(x){x=x||{};return{refConvidados:x.refConvidados??100,descontoMax:x.descontoMax??'',link:x.link||'https://atlantidz-orcamentos.vercel.app',
+  pacotes:Object.assign({},x.pacotes||{}),adicionais:(x.adicionais||[]).map(a=>({id:a.id,nome:a.nome||'',descricao:a.descricao||'',preco:a.preco??'',unidade:a.unidade||'pessoa'})),
+  publicadoEm:x.publicadoEm||'',publicadoHash:x.publicadoHash||''}}
 /* valor de referência por pessoa de um cardápio fixo */
 function pacoteRef(P){let c=0;(P.itens||[]).forEach(it=>{const E=CAD.estacoes.find(e=>e.id===it.estId);const pr=E?.pratos.find(p=>p.id===it.pratoId);if(pr)c+=(num(pr.fator)||0)*custoPrato(pr)});const m=num(P.margem);return{custo:c,venda:c*(1+(m??(num(DRAFT.margemComida)||0))/100)}}
 function pacoteDiff(d=DRAFT){
@@ -718,7 +737,7 @@ function margemCampo(k,label,id){
 }
 /* ---------- render: abas ---------- */
 const VIEWS={orc:[['cardapio','Cardápio','Cardápio'],['custos','Custos adicionais','Custos'],['orcamento','Orçamentos salvos','Salvos']],
-  dados:[['fichas','Fichas técnicas','Fichas'],['cadastro','Cadastro','Cadastro'],['pacotes','Cardápios prontos','Prontos']]};
+  dados:[['fichas','Fichas técnicas','Fichas'],['cadastro','Cadastro','Cadastro'],['pacotes','Cardápios prontos','Prontos'],['site','Site da equipe','Site']]};
 const viewOf=t=>t==='capa'?'capa':VIEWS.orc.some(x=>x[0]===t)?'orc':'dados';
 function renderNav(){
   const v=viewOf(ui.tab),nav=$('#tabs');nav.hidden=v==='capa';
@@ -732,7 +751,7 @@ function setTab(t){
   if(t==='pacotes')ui.cadSub='pacotes';else if(t==='cadastro'&&ui.cadSub==='pacotes')ui.cadSub='estacoes';
   renderNav();
   const panel=t==='pacotes'?'cadastro':t;
-  ['capa','cadastro','cardapio','custos','orcamento','fichas'].forEach(p=>$('#p-'+p).hidden=p!==panel);
+  ['capa','cadastro','cardapio','custos','orcamento','fichas','site'].forEach(p=>$('#p-'+p).hidden=p!==panel);
   renderBar();
   if(t==='capa')renderCapa();
   if(t==='cardapio')renderCardapio();
@@ -740,6 +759,7 @@ function setTab(t){
   if(t==='orcamento')renderOrc();
   if(t==='cadastro'||t==='pacotes')renderCad();
   if(t==='fichas')renderFichas();
+  if(t==='site')renderSite();
   window.scrollTo?.(0,0);
 }
 function renderCapa(){
@@ -765,7 +785,7 @@ function abrirNovo(){
   m.hidden=false;m.querySelector('.opt')?.focus();
 }
 function fecharModal(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
-function renderAll(){if(!loaded)return;renderNav();renderCapa();renderCad();renderCardapio();renderCustos();renderOrc();renderFichas();renderBar()}
+function renderAll(){if(!loaded)return;renderNav();renderCapa();renderCad();renderCardapio();renderCustos();renderOrc();renderFichas();renderSite();renderBar()}
 let deferred=false;
 function renderAllSafe(){const a=document.activeElement;if(a&&a.matches('input,select,textarea')&&a.closest('main')){deferred=true;return}renderAll()}
 document.addEventListener('focusout',()=>setTimeout(()=>{if(deferred){const a=document.activeElement;if(!(a&&a.matches('input,select,textarea')&&a.closest('main'))){deferred=false;renderAll()}}},0));
@@ -1182,6 +1202,86 @@ async function gerarPdf(btn,modo){
 
 /* ---------- caminhos ---------- */
 function setPath(obj,path,val){const k=path.split('.');let o=obj;for(let i=0;i<k.length-1;i++){if(o[k[i]]==null)o[k[i]]={};o=o[k[i]]}o[k[k.length-1]]=val}
+
+/* ---------- site da equipe ---------- */
+const UN_SITE={pessoa:'por convidado',unidade:'por unidade',fixo:'valor fixo'};
+function sugestaoSite(P,n){
+  n=Math.max(1,num(n)||100);
+  const d=Object.assign(emptyDraft(),{convidados:String(n),pacoteId:P.id});
+  d.estacoes=CAD.estacoes.filter(E=>P.itens.some(i=>i.estId===E.id)).map(E=>({estId:E.id,itens:E.pratos.filter(p=>P.itens.some(i=>i.estId===E.id&&i.pratoId===p.id)).map(p=>({pratoId:p.id,fator:''}))}));
+  if(num(P.margem)!=null)d.margemComida=String(num(P.margem));
+  try{aplicarRegras(d)}catch(e){console.error(e)}
+  const t=calc(d).t;return{pp:t.total/n,comida:t.comidaVenda/n,equipe:t.equipeVenda/n,custo:t.custoTotal/n};
+}
+function sitePk(P){const S=CAD.site;if(!S.pacotes[P.id])S.pacotes[P.id]={ativo:false,preco:'',minimo:''};return S.pacotes[P.id]}
+function catalogoSite(){
+  const S=CAD.site;
+  const pacotes=CAD.pacotes.filter(P=>sitePk(P).ativo).map(P=>{const c=sitePk(P);
+    const ordT=E=>{const i=(CAD.tiposEstacao||[]).findIndex(t=>t.nome===E.tipo);return i<0?99:i};
+    const secoes=CAD.estacoes.map((E,ix)=>({E,ix})).sort((x,y)=>ordT(x.E)-ordT(y.E)||x.ix-y.ix).map(({E})=>({nome:E.nome||'Estação',itens:E.pratos.filter(p=>P.itens.some(i=>i.estId===E.id&&i.pratoId===p.id)).map(p=>p.nome||'Prato')})).filter(x=>x.itens.length);
+    return{id:P.id,nome:P.nome||'Cardápio',descricao:P.descricao||'',preco:num(c.preco)||0,minimo:num(c.minimo)||0,secoes}});
+  const adicionais=S.adicionais.filter(a=>a.nome.trim()&&num(a.preco)!=null).map(a=>({id:a.id,nome:a.nome.trim(),descricao:a.descricao.trim(),preco:num(a.preco),unidade:a.unidade}));
+  return{versao:1,empresa:CAD.empresa,tiposEvento:CAD.tiposEvento.map(t=>t.nome).filter(Boolean),descontoMax:num(S.descontoMax),pacotes,adicionais};
+}
+const hashCat=c=>{const t=JSON.stringify(c);let h=0;for(let i=0;i<t.length;i++)h=(h*31+t.charCodeAt(i))|0;return String(h)};
+function renderSite(){
+  if(!loaded)return;const S=CAD.site;const ref=Math.max(1,num(S.refConvidados)||100);
+  const cat=catalogoSite();const mudou=S.publicadoHash&&S.publicadoHash!==hashCat(cat);
+  const semPreco=cat.pacotes.filter(p=>!p.preco).map(p=>p.nome);
+  const quando=S.publicadoEm?new Date(S.publicadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'';
+  let h=`<div class="card"><div class="pub"><div class="st"><span class="eyebrow">Site da equipe de eventos</span>
+      <b>${!S.publicadoEm?'Ainda não publicado':mudou?'Há mudanças não publicadas':'Site atualizado'}</b>
+      <span class="muted" style="font-size:.86rem">${quando?`Última publicação: ${quando} · `:''}${cat.pacotes.length} pacote${cat.pacotes.length===1?'':'s'} e ${cat.adicionais.length} adiciona${cat.adicionais.length===1?'l':'is'} no site</span></div>
+      <span class="pill ${!S.publicadoEm||mudou?'warn':'ok'}">${!S.publicadoEm?'Rascunho':mudou?'Publicar mudanças':'Em dia'}</span>
+      <button class="btn primary big" data-act="site-publicar"${semPreco.length||!cat.pacotes.length?' disabled':''}>Publicar no site</button></div>
+    ${semPreco.length?`<p class="msg">Defina o valor por convidado de: ${semPreco.map(esc).join(', ')}.</p>`:''}
+    ${!cat.pacotes.length?`<p class="hint">Marque pelo menos um pacote para aparecer no site.</p>`:''}
+    <p class="hint">A equipe vê só o que está publicado: nome do pacote, descrição, pratos por estação, valor por convidado e adicionais. Custos, fichas e margens ficam só aqui no app.</p>
+    <div class="row-add"><label class="f" style="flex:1 1 260px">Endereço do site<input id="site-link" data-f="cad" data-path="site.link" value="${esc(S.link)}"></label><a class="btn" href="${esc(S.link)}" target="_blank" rel="noopener">Abrir site</a></div></div>`;
+  h+=`<div class="card"><div class="card-h"><div><span class="eyebrow">Pacotes no site</span><h2>Cardápios e valores</h2></div>
+      <label class="f" style="width:170px">Calcular sugestão para<input id="site-ref" class="num" inputmode="numeric" data-f="cad" data-t="n" data-path="site.refConvidados" value="${esc(nf(S.refConvidados))}" title="Número de convidados usado na sugestão"></label></div>
+    <p class="hint">A sugestão usa as fichas técnicas, as regras de porcionamento, a equipe padrão (turno dia) e a margem de cada cardápio, para ${ref} convidados. Você decide o valor final.</p>
+    ${CAD.pacotes.length?CAD.pacotes.map(P=>{const c=sitePk(P);const g=sugestaoSite(P,ref);const sug=Math.ceil(g.pp);
+      return `<div class="site-pk${c.ativo?'':' off'}"><label class="ck" title="Mostrar no site"><input type="checkbox" data-act="site-ativo" data-k="${P.id}"${c.ativo?' checked':''}><span class="sr-only">No site</span></label>
+        <div class="nm"><b>${esc(P.nome||'Sem nome')}</b><small>${P.itens.length} itens${P.descricao?' · '+esc(P.descricao):''}</small></div>
+        <label class="f">R$ por convidado<input id="sp-${P.id}" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="site.pacotes.${P.id}.preco" value="${esc(nf(c.preco))}" placeholder="${esc(nf(sug))}"></label>
+        <label class="f">Mínimo conv.<input id="sm-${P.id}" class="num" inputmode="numeric" data-f="cad" data-t="n" data-path="site.pacotes.${P.id}.minimo" value="${esc(nf(c.minimo))}" placeholder="—"></label>
+        <div class="sug">Sugerido <b>${brl(g.pp)}</b><span>comida ${brl(g.comida)} + equipe ${brl(g.equipe)} · custo ${brl(g.custo)}</span><button class="btn ghost" style="color:var(--accent)" data-act="site-usar" data-k="${P.id}" data-v="${sug}">Usar ${brl(sug)}</button></div></div>`}).join('')
+    :`<div class="empty"><strong>Nenhum cardápio pronto</strong>Crie em Dados › Cardápios prontos.</div>`}</div>`;
+  h+=`<div class="card"><div class="card-h"><div><span class="eyebrow">Opções extras</span><h2>Adicionais</h2></div></div>
+    <p class="hint">A equipe marca estes itens no orçamento com o preço já definido. Ex.: Mesa de frios (por convidado), Garçom extra (por unidade), Decoração da mesa (valor fixo).</p>
+    ${S.adicionais.map((a,i)=>`<div class="site-ad"><label class="f">Nome<input id="sa-n-${a.id}" data-f="cad" data-path="site.adicionais.${i}.nome" value="${esc(a.nome)}" placeholder="Ex.: Mesa de frios"></label>
+      <label class="f">Descrição<input id="sa-d-${a.id}" data-f="cad" data-path="site.adicionais.${i}.descricao" value="${esc(a.descricao)}" placeholder="Opcional"></label>
+      <label class="f">Preço (R$)<input id="sa-p-${a.id}" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="site.adicionais.${i}.preco" value="${esc(nf(a.preco))}" placeholder="0,00"></label>
+      <label class="f">Cobrança<select id="sa-u-${a.id}" data-f="cad" data-path="site.adicionais.${i}.unidade">${Object.entries(UN_SITE).map(([k,l])=>`<option value="${k}"${a.unidade===k?' selected':''}>${l}</option>`).join('')}</select></label>
+      <button class="x" title="Remover adicional" aria-label="Remover adicional" data-act="site-rm-ad" data-i="${i}">×</button></div>`).join('')}
+    <div><button class="btn" data-act="site-add-ad">+ Adicionar opção</button></div></div>`;
+  h+=`<div class="card"><div class="card-h"><div><span class="eyebrow">Regras</span><h2>Desconto</h2></div></div>
+    <div class="grid-ev"><label class="f">Desconto máximo no pacote (%)<input id="site-dmax" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="site.descontoMax" value="${esc(nf(S.descontoMax))}" placeholder="sem limite"></label></div>
+    <p class="hint">A equipe pode dar desconto em % ou R$ sobre o valor do pacote, até este limite. O nome da empresa, contato e observações do PDF vêm de Cadastro › Empresa e proposta.</p></div>`;
+  $('#p-site').innerHTML=h;
+}
+async function publicarSite(b){
+  const cat=catalogoSite();cat.publicadoEm=new Date().toISOString();
+  if(b){b.disabled=true;b.textContent='Publicando…'}
+  try{
+    if(mode!=='db')throw new Error('sem conexão');
+    await db.doc('config/site').set(cat);
+    const {publicadoEm,...semData}=cat;CAD.site.publicadoEm=publicadoEm;CAD.site.publicadoHash=hashCat(semData);
+    cadPending=true;await flushCad();lastCadSnap=clone(CAD);renderSaveBar();
+    toast('Site atualizado: a equipe já vê os novos pacotes e valores');
+  }catch(e){console.error(e);toast('Não foi possível publicar. Verifique a conexão e tente de novo.')}
+  renderSite();
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act^="site-"]');if(!b)return;const a=b.dataset.act,S=CAD.site;
+  if(a==='site-ativo'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).ativo=b.checked;saveCad();renderSite()}}
+  if(a==='site-usar'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).preco=+b.dataset.v;saveCad();renderSite()}}
+  if(a==='site-add-ad'){const x={id:uid(),nome:'',descricao:'',preco:'',unidade:'pessoa'};S.adicionais.push(x);saveCad();renderSite();$('#sa-n-'+x.id)?.focus()}
+  if(a==='site-rm-ad'){S.adicionais.splice(+b.dataset.i,1);saveCad();renderSite()}
+  if(a==='site-publicar')publicarSite(b);
+});
+document.addEventListener('change',e=>{const el=e.target;if(el.dataset.f==='cad'&&el.dataset.path?.startsWith('site.')&&ui.tab==='site')setTimeout(()=>{const f=document.activeElement;if(f&&f.matches('input,select,textarea')&&f.closest('#p-site')){const id=f.id;renderSite();const n=id&&document.getElementById(id);if(n){n.focus();try{n.select?.()}catch{}}}else renderSite()},0)});
 
 /* ---------- eventos ---------- */
 document.addEventListener('input',e=>{
