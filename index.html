@@ -107,6 +107,12 @@ tfoot td{font-weight:600;border-top:1px solid var(--line);border-bottom:0}
 .sw input:checked+.sl{background:var(--accent)}
 .sw input:checked+.sl::after{transform:translateX(22px)}
 .sw input:focus-visible+.sl{outline:2px solid var(--accent);outline-offset:2px}
+.sw-btn{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;cursor:pointer;padding:4px;margin-left:auto;color:var(--muted);font:600 .74rem/1.15 var(--f-body);text-align:left}
+.sw-btn .sl{position:relative;width:44px;height:26px;border-radius:99px;background:var(--line);flex:none;transition:background .15s}
+.sw-btn .sl::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw-btn[aria-checked="true"]{color:var(--accent)}
+.sw-btn[aria-checked="true"] .sl{background:var(--accent)}
+.sw-btn[aria-checked="true"] .sl::after{transform:translateX(18px)}
 .kit-tag{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:1px 9px;letter-spacing:.06em}
 .kit-cat{border-top:1px solid var(--line);padding-top:12px;display:grid;gap:4px}
 .kit-cat-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -833,7 +839,7 @@ function renderCad(){
     CAD.pacotes.forEach((P,pi)=>{
       const sel=new Set(P.itens.map(i=>i.estId+'|'+i.pratoId));const r=pacoteRef(P);
       const open=ui.pkOpen.has(P.id);const ref=`${P.itens.length} itens · referência ${brl(r.custo)} de custo e ${brl(r.venda)} de valor por convidado`;
-      h+=`<details class="card ficha pacote" data-pid="${P.id}"${open?' open':''}><summary class="card-h"><div style="min-width:0"><span class="eyebrow">${P.kitCategoria?`<span class="kit-tag">Kit · ${esc(P.kitCategoria)}</span>`:'Cardápio pronto'}</span><h3 data-pkt="${pi}">${esc(P.nome||'Sem nome')}</h3><span class="muted" style="font-size:.84rem" data-pkref="${pi}">${ref}</span></div>${tog(open)}</summary>
+      h+=`<details class="card ficha pacote" data-pid="${P.id}"${open?' open':''}><summary class="card-h"><div style="min-width:0"><span class="eyebrow">${P.kitCategoria?`<span class="kit-tag">Kit · ${esc(P.kitCategoria)}</span>`:'Cardápio pronto'}</span><h3 data-pkt="${pi}">${esc(P.nome||'Sem nome')}</h3><span class="muted" style="font-size:.84rem" data-pkref="${pi}">${ref}</span></div><button type="button" class="sw-btn" role="switch" aria-checked="${!!P.kitCategoria}" data-act="pk-kit-sum" data-i="${pi}" title="Kit para combinar no site"><span class="sl" aria-hidden="true"></span><span class="sw-l">Kit para<br>combinar</span></button>${tog(open)}</summary>
       ${open?`<div class="card-h"><label class="f" style="flex:1 1 200px"><span class="eyebrow">Nome</span><input id="pk-${P.id}" data-f="cad" data-path="pacotes.${pi}.nome" value="${esc(P.nome)}" placeholder="Ex.: Premium" style="font-family:var(--f-display);font-weight:600;font-size:1.05rem"></label>
         <label class="f" style="width:120px">Margem (%)<input id="pkm-${P.id}" class="num" inputmode="decimal" data-f="cad" data-t="n" data-path="pacotes.${pi}.margem" value="${esc(nf(P.margem))}" placeholder="padrão"></label>
         <button class="btn ghost" data-act="rm-pacote" data-i="${pi}">Excluir</button></div>
@@ -1250,6 +1256,7 @@ function estacoesDaCategoria(cat){const L=CAD.estacoes.filter(E=>(E.tipo||'')===
 function categoriasKits(){const ord=(CAD.tiposEstacao||[]).map(t=>t.nome);CAD.pacotes.forEach(P=>{if(P.kitCategoria&&!ord.includes(P.kitCategoria))ord.push(P.kitCategoria)});return ord}
 function secoesDeItens(itens){const ordT=E=>{const i=(CAD.tiposEstacao||[]).findIndex(t=>t.nome===E.tipo);return i<0?99:i};
   return CAD.estacoes.map((E,ix)=>({E,ix})).sort((x,y)=>ordT(x.E)-ordT(y.E)||x.ix-y.ix).map(({E})=>({nome:E.nome||'Estação',itens:E.pratos.filter(p=>itens.some(i=>i.estId===E.id&&i.pratoId===p.id)).map(p=>p.nome||'Prato')})).filter(x=>x.itens.length)}
+function setKit(P,on){if(on){const cnt={};P.itens.forEach(it=>{const t=CAD.estacoes.find(E=>E.id===it.estId)?.tipo;if(t)cnt[t]=(cnt[t]||0)+1});P.kitCategoria=Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0]?.[0]||(CAD.tiposEstacao||[])[0]?.nome||'Entradas';if(!CAD.site.pacotes[P.id])sitePk(P).ativo=true}else P.kitCategoria='';saveCad();renderCad();toast(on?`“${P.nome||'Cardápio'}” agora é kit de ${P.kitCategoria.toLowerCase()}. Publique na aba Site da equipe.`:`“${P.nome||'Cardápio'}” voltou a ser pacote completo.`)}
 function sitePk(P){const S=CAD.site;if(!S.pacotes[P.id])S.pacotes[P.id]={ativo:false,preco:'',minimo:''};return S.pacotes[P.id]}
 function catalogoSite(){
   const S=CAD.site;
@@ -1330,13 +1337,15 @@ async function publicarSite(b){
   renderSite();
 }
 document.addEventListener('click',e=>{
-  const b=e.target.closest('[data-act^="site-"],[data-act="pk-kit"]');if(!b)return;const a=b.dataset.act,S=CAD.site;
+  const b=e.target.closest('[data-act^="site-"],[data-act="pk-kit"],[data-act="pk-kit-sum"]');if(!b)return;const a=b.dataset.act,S=CAD.site;
   if(a==='site-ativo'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).ativo=b.checked;saveCad();renderSite()}}
   if(a==='site-usar'){const P=CAD.pacotes.find(x=>x.id===b.dataset.k);if(P){sitePk(P).preco=+b.dataset.v;saveCad();renderSite()}}
   if(a==='site-add-ad'){const x={id:uid(),nome:'',descricao:'',preco:'',unidade:'pessoa'};S.adicionais.push(x);saveCad();renderSite();$('#sa-n-'+x.id)?.focus()}
   if(a==='site-rm-ad'){S.adicionais.splice(+b.dataset.i,1);saveCad();renderSite()}
   if(a==='site-publicar')publicarSite(b);
-  if(a==='pk-kit'){const P=CAD.pacotes[+b.dataset.i];if(P){if(b.checked){const cnt={};P.itens.forEach(it=>{const t=CAD.estacoes.find(E=>E.id===it.estId)?.tipo;if(t)cnt[t]=(cnt[t]||0)+1});P.kitCategoria=Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0]?.[0]||(CAD.tiposEstacao||[])[0]?.nome||'Entradas';if(!CAD.site.pacotes[P.id])sitePk(P).ativo=true}else P.kitCategoria='';saveCad();renderCad()}}
+  if(a==='pk-kit-sum'){e.preventDefault();const P=CAD.pacotes[+b.dataset.i];if(P)setKit(P,!P.kitCategoria);return}
+  if(a==='pk-kit'){const P=CAD.pacotes[+b.dataset.i];if(P)setKit(P,b.checked);return}
+  if(a==='pk-kit-old'){const P=CAD.pacotes[+b.dataset.i];if(P){if(b.checked){const cnt={};P.itens.forEach(it=>{const t=CAD.estacoes.find(E=>E.id===it.estId)?.tipo;if(t)cnt[t]=(cnt[t]||0)+1});P.kitCategoria=Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0]?.[0]||(CAD.tiposEstacao||[])[0]?.nome||'Entradas';if(!CAD.site.pacotes[P.id])sitePk(P).ativo=true}else P.kitCategoria='';saveCad();renderCad()}}
   if(a==='site-serv-usar'){S.servicoKits=+b.dataset.v;saveCad();renderSite()}
   if(a==='site-kit-editar'){ui.pkOpen.add(b.dataset.k);setTab('pacotes');setTimeout(()=>document.querySelector(`[data-pid="${b.dataset.k}"]`)?.scrollIntoView({block:'start'}),50)}
   if(a==='site-kit-novo'){const cat=(CAD.tiposEstacao||[])[0]?.nome||'Entradas';const P={id:uid(),nome:'',descricao:'',margem:'',itens:[],kitCategoria:cat};CAD.pacotes.push(P);sitePk(P).ativo=true;ui.pkOpen.add(P.id);saveCad();setTab('pacotes');setTimeout(()=>{const el=document.getElementById('pk-'+P.id);el?.scrollIntoView({block:'center'});el?.focus()},50)}
